@@ -375,55 +375,67 @@ def calculate_silhouette(data_points: [], cluster_centers: [], data_points_by_cl
         # The nth entry is the average distance from the nth data point
         # to all of the other points in this cluster
         # This is the 'a' value for the data points in this cluster
-        a_values = []
+
         # mean distances for each point to the nearest external cluster.
         # The nth entry is the average distance from the nth data point
         # to all of the other points in the nearest external cluster
         # This is the 'b' value for the data points in this cluster
-        b_values = []
 
         # calculate the nearest other cluster to this cluster
-        nearest_cluster = 0
-        nearest_cluster_idx = 0
-        first_nearest_cluster = True
-        for x in range(0, len(cluster_centers)):
-            # don't measure distance to self
-            if x == i:
-                continue
-            distance = get_distance(cluster_centers[x], cluster_centers[i])
-            if first_nearest_cluster:
-                first_nearest_cluster = False
-                nearest_cluster = distance
-                nearest_cluster_idx = x
-            else:
-                if distance < nearest_cluster:
-                    nearest_cluster = distance
-                    nearest_cluster_idx = x
+        nearest_cluster_idx = find_nearest_cluster(cluster_centers, i)
+
         silhouettes_for_this_cluster = []
-        for j in range(0, len(data_points)):
+        for j in range(0, len(data_points_by_cluster[i])):
             #  find mean distance to other points in this cluster
             distances = []
-            for k in range(0, len(data_points)):
+            for k in range(0, len(data_points_by_cluster[i])):
                 # don't check point against itself
                 if j == k:
                     continue
-                distance = get_distance(data_points[j], data_points[k])
+                distance = get_distance(data_points_by_cluster[i][j], data_points_by_cluster[i][k])
                 distances.append(distance)
             mean_distance_a = sum(distances) / len(distances)
-            a_values.append(mean_distance_a)
+
             # get the b value
             distances = []
             for p in range(0, len(data_points_by_cluster[nearest_cluster_idx])):
-                distance = get_distance(data_points[j], data_points_by_cluster[nearest_cluster_idx][p])
+                distance = get_distance(data_points_by_cluster[i][j], data_points_by_cluster[nearest_cluster_idx][p])
                 distances.append(distance)
             mean_distance_b = sum(distances) / len(distances)
-            b_values.append(mean_distance_b)
+
             # a_value - b_value / max(a_value, b_value) is the silhouette for this data point
-            silhouettes_for_this_cluster.append((mean_distance_a - mean_distance_b))
-            #  / max(mean_distance_b, mean_distance_a))
+            silhouettes_for_this_cluster.append(
+                100 * (mean_distance_b - mean_distance_a) / max(mean_distance_b, mean_distance_a))
+
         silhouettes.append(sum(silhouettes_for_this_cluster) / len(silhouettes_for_this_cluster))
     silhouette = sum(silhouettes) / len(silhouettes)
     return silhouette
+
+def find_nearest_cluster(cluster_centers, curr_idx):
+    '''
+    Finds the nearest cluster to the current cluster,
+    so long as the nearest cluster candidate has at least one data point
+    :param cluster_centers: list of clusters
+    :param curr_idx: current cluster index
+    :return: index of the nearest cluster
+    '''
+    first_nearest_cluster = True
+    nearest_cluster = 0
+    nearest_cluster_idx = 0
+    for i in range(0, len(cluster_centers)):
+        # don't measure distance to self
+        if i == curr_idx:
+            continue
+        distance = get_distance(cluster_centers[i], cluster_centers[curr_idx])
+        if first_nearest_cluster and len(cluster_centers[i]) > 0:
+            first_nearest_cluster = False
+            nearest_cluster = distance
+            nearest_cluster_idx = i
+        else:
+            if distance < nearest_cluster and len(cluster_centers[i]) > 0:
+                nearest_cluster = distance
+                nearest_cluster_idx = i
+    return nearest_cluster_idx
 
 def get_distance(data1, data2):
     '''
@@ -523,7 +535,9 @@ def main():
     output_filename = sys.argv[4]
 
     silhouettes = []
-    for k in range(2, 8):
+    min_k = 2
+    max_k = 8
+    for k in range(min_k, max_k):
         cluster_centers, data_points, data_points_by_cluster = perform_cluster_analysis(k=k,
                                                                                         max_iterations=max_iterations,
                                                                                         data_filename=data_filename)
@@ -535,9 +549,9 @@ def main():
 
     best_silhouette = 0
     best_silhouette_idx = 0
-    for i in range(2, 8):
-        if silhouettes[i-2] > best_silhouette:
-            best_silhouette = silhouettes[i-2]
+    for i in range(min_k, max_k):
+        if silhouettes[i - 2] > best_silhouette:
+            best_silhouette = silhouettes[i - 2]
             best_silhouette_idx = i
 
     print("Best Silhouette: " + str(best_silhouette_idx))
